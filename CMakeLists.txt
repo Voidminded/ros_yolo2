@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 2.8.3)
 project(yolo2)
 
 option(CUDNN "Enable CuDNN" OFF)
-option(FORTIFY "Fortify GCC compilation" OFF)
+option(FORTIFY "Fortify GCC compilation" ON)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_FLAGS_RELEASE "-Ofast -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -DNDEBUG")
 set(CUDA_NVCC_FLAGS_RELEASE --use_fast_math)
 add_compile_options(-Wall -Wextra)
-add_definitions(-DGPU=1)
+add_definitions(-DGPU=0)
 if (${CUDNN})
   add_definitions(-DCUDNN=1)
 endif()
@@ -18,8 +18,9 @@ if (FORTIFY)
   add_compile_options(-fstack-protector-all -Wstack-protector --param ssp-buffer-size=4 -D_FORTIFY_SOURCE=2 -O2 -g)
 endif()
 
+find_package(OpenCV 3 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
-  image_transport message_generation nodelet roscpp roslib roslint sensor_msgs std_msgs
+  image_transport message_generation nodelet roscpp roslib roslint sensor_msgs std_msgs cv_bridge
 )
 find_package(CUDA REQUIRED)
 
@@ -55,6 +56,7 @@ add_message_files(
 generate_messages(
   DEPENDENCIES
   std_msgs
+  sensor_msgs
 )
 
 ## Declare things to be passed to dependent projects
@@ -68,6 +70,7 @@ catkin_package(
 
 include_directories(
   SYSTEM ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
   SYSTEM ${CUDA_INCLUDE_DIRS}
   include
   darknet/src
@@ -126,6 +129,7 @@ cuda_add_cublas_to_target(yolo2)
 
 target_link_libraries(yolo2
   ${CUDA_LIBRARIES}
+  ${OpenCV_LIBRARIES}
   ${CUDA_curand_LIBRARY}
 )
 

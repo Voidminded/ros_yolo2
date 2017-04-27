@@ -35,86 +35,121 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <opencv2/core/core.hpp>
+#include "cv_bridge/cv_bridge.h"
 
 #include "darknet/yolo2.h"
 
 namespace
 {
-darknet::Detector yolo;
-ros::Publisher publisher;
-image im = {};
-float *image_data = nullptr;
-ros::Time timestamp;
-std::mutex mutex;
-std::condition_variable im_condition;
+  darknet::Detector yolo;
+  ros::Publisher publisher;
+  ros::Publisher pub_cftld_tracker_init_;
+  image_transport::Publisher pub_debug_image_;
+  image im = {};
+  float *image_data = nullptr;
+  int imageH, imageW;
+  ros::Time timestamp;
+  std::mutex mutex;
+  std::condition_variable im_condition;
+  cv::Mat frame_debug_;
 
-void imageCallback(const sensor_msgs::ImageConstPtr& msg)
-{
-  im = yolo.convert_image(msg);
-  std::unique_lock<std::mutex> lock(mutex);
-  if (image_data)
-    free(image_data);
-  timestamp = msg->header.stamp;
-  image_data = im.data;
-  lock.unlock();
-  im_condition.notify_one();
-}
+  void imageCallback(const sensor_msgs::ImageConstPtr& msg)
+  {
+    im = yolo.convert_image(msg);
+    std::unique_lock<std::mutex> lock(mutex);
+    if (image_data)
+      free(image_data);
+    timestamp = msg->header.stamp;
+    imageH = msg->height;
+    imageW = msg->width;
+    image_data = im.data;
+    im_condition.notify_one();
+    try
+    {
+      frame_debug_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image.clone();
+    }
+    catch (cv::Exception &e)
+    {
+      ROS_ERROR_STREAM("E: " << e.what());
+    }
+    lock.unlock();
+  }
 }  // namespace
 
 namespace yolo2
 {
-class Yolo2Nodelet : public nodelet::Nodelet
-{
- public:
-  virtual void onInit()
+  class Yolo2Nodelet : public nodelet::Nodelet
   {
-    ros::NodeHandle& node = getPrivateNodeHandle();
-    const std::string NET_DATA = ros::package::getPath("yolo2") + "/data/";
-    std::string config = NET_DATA + "yolo.cfg", weights = NET_DATA + "yolo.weights";
-    double confidence, nms;
-    node.param<double>("confidence", confidence, .8);
-    node.param<double>("nms", nms, .4);
-    yolo.load(config, weights, confidence, nms);
-
-    image_transport::ImageTransport transport = image_transport::ImageTransport(node);
-    subscriber = transport.subscribe("image", 1, imageCallback);
-    publisher = node.advertise<yolo2::ImageDetections>("detections", 5);
-
-    yolo_thread = new std::thread(run_yolo);
-  }
-
-  ~Yolo2Nodelet()
-  {
-    yolo_thread->join();
-    delete yolo_thread;
-  }
-
- private:
-  image_transport::Subscriber subscriber;
-  std::thread *yolo_thread;
-
-  static void run_yolo()
-  {
-    while (ros::ok())
+  public:
+    virtual void onInit()
     {
-      float *data;
-      ros::Time stamp;
-      {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (!image_data)
-          im_condition.wait(lock);
-        data = image_data;
-        image_data = nullptr;
-        stamp = timestamp;
-      }
-      boost::shared_ptr<yolo2::ImageDetections> detections(new yolo2::ImageDetections);
-      *detections = yolo.detect(data);
-      detections->header.stamp = stamp;
-      publisher.publish(detections);
-      free(data);
+      ros::NodeHandle& node = getPrivateNodeHandle();
+      const std::string NET_DATA = ros::package::getPath("yolo2") + "/data/";
+      std::string config = NET_DATA + "yolo.cfg", weights = NET_DATA + "yolo.weights";
+      double confidence, nms;
+      node.param<double>("confidence", confidence, .8);
+      node.param<double>("nms", nms, .4);
+      yolo.load(config, weights, confidence, nms);
+
+      image_transport::ImageTransport transport = image_transport::ImageTransport(node);
+      subscriber = transport.subscribe("/bebop/image_raw", 1, imageCallback);
+      pub_debug_image_ = transport.advertise("debug_image", 1);
+      publisher = node.advertise<yolo2::ImageDetections>("detections", 5);
+      pub_cftld_tracker_init_ = node.advertise<sensor_msgs::RegionOfInterest>("/cftld/init_roi", 1);
+      yolo_thread = new std::thread(run_yolo);
     }
-  }
-};
+
+    ~Yolo2Nodelet()
+    {
+      yolo_thread->join();
+      delete yolo_thread;
+    }
+
+  private:
+    image_transport::Subscriber subscriber;
+//    image_transport::Publisher pub_debug_image_;
+    std::thread *yolo_thread;
+
+    static void run_yolo()
+    {
+      while (ros::ok())
+        {
+          float *data;
+          ros::Time stamp;
+          {
+            std::unique_lock<std::mutex> lock(mutex);
+            while (!image_data)
+              im_condition.wait(lock);
+            data = image_data;
+            image_data = nullptr;
+            stamp = timestamp;
+          }
+          boost::shared_ptr<yolo2::ImageDetections> detections(new yolo2::ImageDetections);
+          *detections = yolo.detect(data, imageH, imageW);
+          detections->header.stamp = stamp;
+          publisher.publish(detections);
+          if (pub_debug_image_.getNumSubscribers() > 0 )
+            {
+              for( int i = 0; i < detections->detections.size(); i++)
+                {
+                  if( i == 0)
+                    pub_cftld_tracker_init_.publish(detections->detections[i].roi);
+                  cv::rectangle(frame_debug_, cv::Rect(detections->detections[i].roi.x_offset, detections->detections[i].roi.y_offset, detections->detections[i].roi.width, detections->detections[i].roi.height), CV_RGB(0, 128, 128), 2);
+                }
+
+              std_msgs::Header h;
+              h.stamp = timestamp;
+              sensor_msgs::ImagePtr debug_img_msg = cv_bridge::CvImage( h,
+                                                                       sensor_msgs::image_encodings::BGR8,
+                                                                       frame_debug_).toImageMsg();
+
+              pub_debug_image_.publish(debug_img_msg);
+            }
+          free(data);
+        }
+    }
+  };
 }  // namespace yolo2
 
 PLUGINLIB_EXPORT_CLASS(yolo2::Yolo2Nodelet, nodelet::Nodelet)

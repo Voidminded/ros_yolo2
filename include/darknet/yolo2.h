@@ -50,10 +50,10 @@ class Detector
   void load(std::string& model_file, std::string& trained_file, double min_confidence, double nms);
   ~Detector();
   image convert_image(const sensor_msgs::ImageConstPtr& msg);
-  yolo2::ImageDetections detect(float *data);
+  yolo2::ImageDetections detect(float *data, int h, int w);
 
  private:
-  std::vector<yolo2::Detection> forward(float *data);
+  std::vector<yolo2::Detection> forward(float *data, int h, int w);
 
   double min_confidence_, nms_;
   network net_;

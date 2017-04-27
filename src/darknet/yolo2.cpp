@@ -71,10 +71,10 @@ Detector::~Detector()
   free_network(net_);
 }
 
-yolo2::ImageDetections Detector::detect(float *data)
+yolo2::ImageDetections Detector::detect(float *data, int h, int w)
 {
   yolo2::ImageDetections detections;
-  detections.detections = forward(data);
+  detections.detections = forward(data, h, w);
   return detections;
 }
 
@@ -111,7 +111,7 @@ image Detector::convert_image(const sensor_msgs::ImageConstPtr& msg)
   return resized;
 }
 
-std::vector<yolo2::Detection> Detector::forward(float *data)
+std::vector<yolo2::Detection> Detector::forward(float *data, int h, int w)
 {
   float *prediction = network_predict(net_, data);
   layer output_layer = net_.layers[net_.n - 1];
@@ -120,7 +120,7 @@ std::vector<yolo2::Detection> Detector::forward(float *data)
   if (output_layer.type == DETECTION)
     get_detection_boxes(output_layer, 1, 1, min_confidence_, probs_.data(), boxes_.data(), 0);
   else if (output_layer.type == REGION)
-    get_region_boxes(output_layer, 1, 1, min_confidence_, probs_.data(), boxes_.data(), 0, 0);
+    get_region_boxes(output_layer, 1, 1, net_.w, net_.h, min_confidence_, probs_.data(), boxes_.data(), 0, 0, 0.5, 1);//"tree_thresh" and "relative" parameters are being filled with values from latest yolo demo function
   else
     error("Last layer must produce detections\n");
 
@@ -131,7 +131,7 @@ std::vector<yolo2::Detection> Detector::forward(float *data)
   {
     int class_id = max_index(probs_[i], num_classes);
     float prob = probs_[i][class_id];
-    if (prob)
+    if (prob >= min_confidence_)
     {
       yolo2::Detection detection;
       box b = boxes_[i];
@@ -142,6 +142,10 @@ std::vector<yolo2::Detection> Detector::forward(float *data)
       detection.height = b.h;
       detection.confidence = prob;
       detection.class_id = class_id;
+      detection.roi.x_offset = int(std::min(std::max(0.0,(b.x-b.w/2.0)),1.0)*w);
+      detection.roi.y_offset = int(std::min(std::max(0.0,(b.y-b.h/2.0)),1.0)*h);
+      detection.roi.width = (int(b.w*w)+detection.roi.x_offset)<=w?int(b.w*w):(int(b.w*w)-(int(b.w*w)+detection.roi.x_offset-w));
+      detection.roi.height = (int(b.h*h)+detection.roi.y_offset)<=h?int(b.h*h):(int(b.h*h)-(int(b.h*h)+detection.roi.y_offset-h));
       detections.push_back(detection);
     }
   }
