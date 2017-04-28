@@ -28,6 +28,7 @@
 #include <ros/console.h>
 #include <ros/package.h>
 #include <ros/ros.h>
+#include <std_msgs/Bool.h>
 #include <yolo2/ImageDetections.h>
 
 #include <condition_variable>
@@ -44,8 +45,8 @@ namespace
 {
   darknet::Detector yolo;
   ros::Publisher publisher;
-  ros::Publisher pub_cftld_tracker_init_;
   image_transport::Publisher pub_debug_image_;
+  ros::Subscriber sub_enable_;
   image im = {};
   float *image_data = nullptr;
   int imageH, imageW;
@@ -53,6 +54,7 @@ namespace
   std::mutex mutex;
   std::condition_variable im_condition;
   cv::Mat frame_debug_;
+  bool enabled_ = false;
 
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
@@ -75,6 +77,14 @@ namespace
     }
     lock.unlock();
   }
+
+  void enableCallback(const std_msgs::BoolConstPtr &enable_msg_ptr)
+  {
+    if(enabled_ == enable_msg_ptr->data)
+      return;
+    enabled_ = enable_msg_ptr->data;
+    ROS_INFO_STREAM("[YOLO] request: " << (enabled_ ? "enable" : "disable"));
+  }
 }  // namespace
 
 namespace yolo2
@@ -94,9 +104,9 @@ namespace yolo2
 
       image_transport::ImageTransport transport = image_transport::ImageTransport(node);
       subscriber = transport.subscribe("/bebop/image_raw", 1, imageCallback);
+      sub_enable_ = node.subscribe("enable", 1, enableCallback);
       pub_debug_image_ = transport.advertise("debug_image", 1);
       publisher = node.advertise<yolo2::ImageDetections>("detections", 5);
-      pub_cftld_tracker_init_ = node.advertise<sensor_msgs::RegionOfInterest>("/cftld/init_roi", 1);
       yolo_thread = new std::thread(run_yolo);
     }
 
@@ -108,13 +118,13 @@ namespace yolo2
 
   private:
     image_transport::Subscriber subscriber;
-//    image_transport::Publisher pub_debug_image_;
     std::thread *yolo_thread;
-
     static void run_yolo()
     {
       while (ros::ok())
         {
+          if( enabled_)
+          {
           float *data;
           ros::Time stamp;
           {
@@ -133,8 +143,6 @@ namespace yolo2
             {
               for( int i = 0; i < detections->detections.size(); i++)
                 {
-                  if( i == 0)
-                    pub_cftld_tracker_init_.publish(detections->detections[i].roi);
                   cv::rectangle(frame_debug_, cv::Rect(detections->detections[i].roi.x_offset, detections->detections[i].roi.y_offset, detections->detections[i].roi.width, detections->detections[i].roi.height), CV_RGB(0, 128, 128), 2);
                 }
 
@@ -148,6 +156,7 @@ namespace yolo2
             }
           free(data);
         }
+      }
     }
   };
 }  // namespace yolo2
