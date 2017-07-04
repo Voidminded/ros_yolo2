@@ -24,7 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(CUDA REQUIRED)
 
-roslint_cpp(include/darknet/yolo2.h src/darknet/yolo2.cpp src/yolo2_node.cpp src/yolo2_nodelet.cpp)
+roslint_cpp(include/darknet/include/darknet.h src/darknet/examples/yolo2.cpp src/yolo2_node.cpp src/yolo2_nodelet.cpp)
 roslint_add_test()
 
 ## To declare and build messages, services or actions from within this
@@ -74,6 +74,8 @@ include_directories(
   SYSTEM ${CUDA_INCLUDE_DIRS}
   include
   darknet/src
+  darknet/examples
+  darknet/include
 )
 
 cuda_add_library(yolo2
