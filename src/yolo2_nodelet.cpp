@@ -143,7 +143,10 @@ namespace yolo2
             {
               for( int i = 0; i < detections->detections.size(); i++)
                 {
-                  cv::rectangle(frame_debug_, cv::Rect(detections->detections[i].roi.x_offset, detections->detections[i].roi.y_offset, detections->detections[i].roi.width, detections->detections[i].roi.height), CV_RGB(0, 128, 128), 2);
+                  if(detections->detections[i].class_id == 0)
+                    cv::rectangle(frame_debug_, cv::Rect(detections->detections[i].roi.x_offset, detections->detections[i].roi.y_offset, detections->detections[i].roi.width, detections->detections[i].roi.height), CV_RGB(0, 255, 255), 2);
+                  else
+                    cv::rectangle(frame_debug_, cv::Rect(detections->detections[i].roi.x_offset, detections->detections[i].roi.y_offset, detections->detections[i].roi.width, detections->detections[i].roi.height), CV_RGB(255, 0, 255), 2);
                 }
 
               std_msgs::Header h;
