@@ -120,7 +120,7 @@ std::vector<yolo2::Detection> Detector::forward(float *data, int h, int w)
   if (output_layer.type == DETECTION)
     get_detection_boxes(output_layer, 1, 1, min_confidence_, probs_.data(), boxes_.data(), 0);
   else if (output_layer.type == REGION)
-    get_region_boxes(output_layer, 1, 1, net_.w, net_.h, min_confidence_, probs_.data(), boxes_.data(), 0, 0, 0.5, 1);//"tree_thresh" and "relative" parameters are being filled with values from latest yolo demo function
+    get_region_boxes(output_layer, 1, 1, net_.w, net_.h, min_confidence_, probs_.data(), boxes_.data(), 0, 0, 0, 0.5, 1);//"tree_thresh" and "relative" parameters are being filled with values from latest yolo demo function
   else
     error("Last layer must produce detections\n");
 
