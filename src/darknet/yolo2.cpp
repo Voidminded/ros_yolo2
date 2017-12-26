@@ -38,7 +38,7 @@ extern "C"
 {
 #undef __cplusplus
 #include "detection_layer.h"  // NOLINT(build/include)
-#include "parser.h"  // NOLINT(build/include)
+#include "darknet.h"  // NOLINT(build/include)
 #include "region_layer.h"  // NOLINT(build/include)
 #include "utils.h"  // NOLINT(build/include)
 #define __cplusplus
@@ -50,8 +50,8 @@ void Detector::load(std::string& model_file, std::string& trained_file, double m
 {
   min_confidence_ = min_confidence;
   nms_ = nms;
-  net_ = parse_network_cfg(&model_file[0]);
-  load_weights(net_, &trained_file[0]);
+  net_ = load_network(&model_file[0], &trained_file[0], 0);
+//  load_weights(net_, &trained_file[0]);
   set_batch_network(net_, 1);
 
   layer output_layer = net_->layers[net_->n - 1];

@@ -114,7 +114,7 @@ cuda_add_library(yolo2
   darknet/src/maxpool_layer.c
   darknet/src/maxpool_layer_kernels.cu
   darknet/src/network.c
-  darknet/src/network_kernels.cu
+  #darknet/src/network_kernels.cu
   darknet/src/normalization_layer.c
   darknet/src/option_list.c
   darknet/src/parser.c
