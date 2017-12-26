@@ -51,10 +51,10 @@ void Detector::load(std::string& model_file, std::string& trained_file, double m
   min_confidence_ = min_confidence;
   nms_ = nms;
   net_ = parse_network_cfg(&model_file[0]);
-  load_weights(&net_, &trained_file[0]);
-  set_batch_network(&net_, 1);
+  load_weights(net_, &trained_file[0]);
+  set_batch_network(net_, 1);
 
-  layer output_layer = net_.layers[net_.n - 1];
+  layer output_layer = net_->layers[net_->n - 1];
   boxes_.resize(output_layer.w * output_layer.h * output_layer.n);
   probs_.resize(output_layer.w * output_layer.h * output_layer.n);
   float *probs_mem = static_cast<float *>(calloc(probs_.size() * output_layer.classes, sizeof(float)));
@@ -102,11 +102,11 @@ image Detector::convert_image(const sensor_msgs::ImageConstPtr& msg)
     j += offset;
   }
 
-  if (net_.w == width && net_.h == height)
+  if (net_->w == width && net_->h == height)
   {
     return im;
   }
-  image resized = resize_image(im, net_.w, net_.h);
+  image resized = resize_image(im, net_->w, net_->h);
   free_image(im);
   return resized;
 }
@@ -114,13 +114,13 @@ image Detector::convert_image(const sensor_msgs::ImageConstPtr& msg)
 std::vector<yolo2::Detection> Detector::forward(float *data, int h, int w)
 {
   float *prediction = network_predict(net_, data);
-  layer output_layer = net_.layers[net_.n - 1];
+  layer output_layer = net_->layers[net_->n - 1];
 
   output_layer.output = prediction;
   if (output_layer.type == DETECTION)
     get_detection_boxes(output_layer, 1, 1, min_confidence_, probs_.data(), boxes_.data(), 0);
   else if (output_layer.type == REGION)
-    get_region_boxes(output_layer, 1, 1, net_.w, net_.h, min_confidence_, probs_.data(), boxes_.data(), 0, 0, 0, 0.5, 1);//"tree_thresh" and "relative" parameters are being filled with values from latest yolo demo function
+    get_region_boxes(output_layer, 1, 1, net_->w, net_->h, min_confidence_, probs_.data(), boxes_.data(), 0, 0, 0, 0.5, 1);//"tree_thresh" and "relative" parameters are being filled with values from latest yolo demo function
   else
     error("Last layer must produce detections\n");
 

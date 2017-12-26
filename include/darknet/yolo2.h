@@ -56,7 +56,7 @@ class Detector
   std::vector<yolo2::Detection> forward(float *data, int h, int w);
 
   double min_confidence_, nms_;
-  network net_;
+  network *net_;
   std::vector<box> boxes_;
   std::vector<float *> probs_;
 };
